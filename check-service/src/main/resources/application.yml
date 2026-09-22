@@ -24,3 +24,11 @@ mybatis-plus:
   configuration:
     # 打印实际执行的 SQL 到控制台,方便你调试原子操作/CAS 语句有没有按预期执行
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# AI 辅助诊断（/check/diagnose）的配置，绑定到 AiProperties。
+# api-key 不配就是空字符串，OpenAiCompatibleDiagnosisClient 会自动走规则兜底，不发真实请求——
+# 不配 key 也能跑起来整个项目，想接真实模型时设置下面三个环境变量即可，无需改代码。
+ai:
+  base-url: ${AI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+  api-key: ${AI_API_KEY:}
+  model: ${AI_MODEL:qwen-plus}

@@ -3,8 +3,10 @@ package com.wms.check.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.wms.check.entity.DemoBox;
 import com.wms.check.entity.DemoOrder;
+import com.wms.check.entity.DemoSecondVerificationLog;
 import com.wms.check.mapper.DemoBoxMapper;
 import com.wms.check.mapper.DemoOrderMapper;
+import com.wms.check.mapper.DemoSecondVerificationLogMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +47,9 @@ class DemoOrderServiceLockContentionBenchmarkTest {
 
     @Autowired
     private DemoBoxMapper demoBoxMapper;
+
+    @Autowired
+    private DemoSecondVerificationLogMapper logMapper;
 
     @Test
     void compareLockHoldTimeImpact() throws Exception {
@@ -112,6 +117,11 @@ class DemoOrderServiceLockContentionBenchmarkTest {
         assertTrue(endGate.await(30, TimeUnit.SECONDS), "并发任务超时没跑完");
         pool.shutdown();
 
+        // 新方案（checkBox）走的是 @Async + AFTER_COMMIT，这里已经拿到各线程的耗时了，
+        // 但异步补偿逻辑可能还没跑完。等一下再清理，避免 demo_second_verification_log
+        // 留下引用了已删除订单的孤儿记录。
+        Thread.sleep(1000);
+        logMapper.delete(new LambdaQueryWrapper<DemoSecondVerificationLog>().eq(DemoSecondVerificationLog::getOrderId, orderId));
         demoBoxMapper.delete(new LambdaQueryWrapper<DemoBox>().eq(DemoBox::getOrderId, orderId));
         demoOrderMapper.deleteById(orderId);
 

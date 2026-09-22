@@ -5,8 +5,10 @@ import com.wms.check.entity.DemoBox;
 import com.wms.check.entity.DemoOrder;
 import com.wms.check.exception.CheckError;
 import com.wms.check.exception.CheckException;
+import com.wms.check.entity.DemoSecondVerificationLog;
 import com.wms.check.mapper.DemoBoxMapper;
 import com.wms.check.mapper.DemoOrderMapper;
+import com.wms.check.mapper.DemoSecondVerificationLogMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +46,9 @@ class DemoOrderServiceConcurrencyTest {
     @Autowired
     private DemoBoxMapper demoBoxMapper;
 
+    @Autowired
+    private DemoSecondVerificationLogMapper logMapper;
+
     private String orderNo;
     private Long orderId;
 
@@ -58,7 +63,14 @@ class DemoOrderServiceConcurrencyTest {
     }
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws InterruptedException {
+        // checkBox() 发布的二次核对事件是 @Async + AFTER_COMMIT，测试主线程这里已经拿到
+        // 响应了，但异步补偿逻辑（含 300ms 慢操作）大概率还没跑完。等一下再清理，
+        // 避免 demo_second_verification_log 留下引用了已删除订单的孤儿记录
+        // （之前这里没等、也没清理这张表，攒了一堆孤儿记录，干扰了别的测试）。
+        // THREADS=20 意味着最多 20 个异步任务几乎同时抢线程，留够余量避免个别线程被调度延迟。
+        Thread.sleep(1500);
+        logMapper.delete(new LambdaQueryWrapper<DemoSecondVerificationLog>().eq(DemoSecondVerificationLog::getOrderId, orderId));
         demoBoxMapper.delete(new LambdaQueryWrapper<DemoBox>().eq(DemoBox::getOrderId, orderId));
         demoOrderMapper.deleteById(orderId);
     }

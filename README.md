@@ -66,6 +66,23 @@ public void onSecondVerification(SecondVerificationEvent event) { ... }
 - 失败会落一条待补偿记录，由 `@Scheduled` 定时任务重试（最多 3 次，超过上限留痕放弃），这是"最终一致性"的落地方式。
 - 这个改动带来两个收益：**延迟**（用户不用等这 300ms）和**故障隔离**（下游超时不会拖累已经成功提交的核对结果——旧方案里 `rollbackFor` 会把 CAS 抢箱、序号分配一起回滚掉）。故障隔离是更重要的一点，因为慢操作失败是低频事件，延迟收益反而是长期高频存在的。
 
+### 4. AI 辅助诊断
+
+`GET /check/diagnose?orderNo=xxx` —— 把某个订单最近的二次核对失败/重试记录（`demo_second_verification_log`）拼成上下文，丢给大模型，换一段人话诊断（可能的根因 + 排查建议），省去运维去数据库里一条条翻日志。
+
+设计上刻意做了几层隔离，不让这个"锦上添花"的能力反过来影响核心业务：
+
+- **接口抽象**：业务层只依赖 `AiDiagnosisClient` 接口，不关心具体调的是哪家模型（`OpenAiCompatibleDiagnosisClient` 走 OpenAI 兼容协议，阿里云 DashScope / DeepSeek / Moonshot / OpenAI 官方都适用，换供应商只改配置不改代码）。
+- **类型安全配置**：`ai.base-url` / `ai.api-key` / `ai.model` 通过 `@ConfigurationProperties` 绑定，而不是散落的 `@Value`。
+- **优雅降级**：没配 `AI_API_KEY`，或者真实调用失败（超时/限流/网络抖动），直接走规则兜底、把原始记录原样返回，不抛异常——这是个只读辅助接口，AI 不可用不该影响任何人；也因此这个仓库任何人 clone 下来不用申请 API key 也能跑起来看效果。
+
+```bash
+# 环境变量都不设也能跑，会走兜底分支返回原始记录
+export AI_API_KEY=xxx        # 可选：接入真实模型
+export AI_BASE_URL=xxx       # 可选：换成别的 OpenAI 兼容服务
+export AI_MODEL=xxx          # 可选：换模型名
+```
+
 ## 压测结果
 
 `DemoOrderServiceLockContentionBenchmarkTest` 用真实 InnoDB 行锁复现两种方案在同一个订单上并发扫码（5 线程）的延迟分布，不是模拟出来的：`incrementScanOrder()` 对 `demo_order` 那一行加的行锁，在旧方案里会一直持有到 300ms 的慢操作跑完、事务提交才释放；新方案里只持有到那条 `UPDATE` 语句本身提交，微秒级。
@@ -106,10 +123,14 @@ cd check-service
 mvn spring-boot:run
 ```
 
-### 4. 试一下核对接口
+### 4. 试一下接口
 
 ```bash
+# 核对接口
 curl -X POST "http://localhost:8081/check/box?orderNo=xxx&boxNo=xxx"
+
+# AI 诊断接口（没配 AI_API_KEY 也能跑，会返回兜底文本）
+curl "http://localhost:8081/check/diagnose?orderNo=xxx"
 ```
 
 ### 5. 跑测试
@@ -120,4 +141,11 @@ mvn -pl check-service -am test -Dtest=DemoOrderServiceConcurrencyTest
 
 # 压测：复现真实生产的延迟对比
 mvn -pl check-service -am test -Dtest=DemoOrderServiceLockContentionBenchmarkTest
+
+# AI 诊断的降级路径（不依赖真实 API key）
+mvn -pl check-service -am test -Dtest=AnomalyDiagnosisServiceTest
 ```
+
+## 关于本项目的开发方式
+
+这是一个个人学习/求职项目，核心的并发设计（CAS 语句、原子自增 SQL、Service 执行顺序与事务边界）由我自己设计和编写；脚手架代码（Mapper/Controller/异常体系）、测试（含压测）、文档整理、调试排错这些部分用 [Claude Code](https://claude.com/claude-code) 辅助完成——如实说明，不代表我不理解这些代码，README 和面试里提到的每一处设计权衡我都能展开讲。
