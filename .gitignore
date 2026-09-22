@@ -1,0 +1,20 @@
+# Maven
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Claude Code 本地会话/配置，不对外公开
+.claude/
+
+# 面试准备笔记，只留本地自己看
+INTERVIEW_PREP.md
+
+# 日志
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,26 @@
+server:
+  port: 0
+
+spring:
+  application:
+    name: check-service-test
+  cloud:
+    # 跑并发测试不需要注册中心和限流，关掉免得连不上 Nacos 直接启动失败
+    nacos:
+      discovery:
+        enabled: false
+    discovery:
+      enabled: false
+    sentinel:
+      eager: false
+      enabled: false
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/wms_check?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  configuration:
+    # 并发测试会刷出大量 SQL，默认关掉；要看具体语句时改回 StdOutImpl
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl

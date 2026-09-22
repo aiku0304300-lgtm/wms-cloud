@@ -1,0 +1,26 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: check-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    sentinel:
+      transport:
+        dashboard: 127.0.0.1:8858
+      eager: true
+  datasource:
+    # 支持用环境变量覆盖，默认值 root/root 只是本地开发占位符，不是真实密码
+    url: jdbc:mysql://127.0.0.1:3306/wms_check?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+# MyBatis-Plus 自身的配置（跟 spring.datasource 是平级的顶层节点，不是嵌在 spring 下面）
+mybatis-plus:
+  configuration:
+    # 打印实际执行的 SQL 到控制台,方便你调试原子操作/CAS 语句有没有按预期执行
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

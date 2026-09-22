@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    gateway:
+      discovery:
+        locator:
+          # 关掉"自动路由"：默认打开的话，Nacos 里注册的每个服务（包括 inventory-service）
+          # 都会被自动暴露成一条路由。我们只想让外部访问 check-service，
+          # inventory-service 要保持"纯内部服务"，所以显式关闭，只在下面手写路由。
+          enabled: false
+      routes:
+        - id: check-service-route
+          uri: lb://check-service
+          predicates:
+            - Path=/api/check/**
+          filters:
+            - StripPrefix=1
